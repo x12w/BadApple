@@ -5,22 +5,38 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '6.5.0' # 也可以改成 5.15.2
+          version: '6.5.0'
+          cache: true
+
       - name: Setup OpenCV
-        uses: xperience-i-am/setup-opencv@v1.0.1
+        # 换用这个维护更好的 Action
+        uses: lucasg/setup-opencv@v1
         with:
           opencv-version: '4.8.0'
+
       - name: Build
         run: |
           mkdir build
           cd build
-          cmake ..
+          # 注意：lucasg/setup-opencv 会设置 OpenCV_DIR 环境变量
+          cmake -DOpenCV_DIR="${{ env.OpenCV_DIR }}" ..
           cmake --build . --config Release --target jumpbox
+
+      - name: Package
+        run: |
+          cd build/Release
+          # 1. 自动部署 Qt 依赖
+          windeployqt --no-translations --compiler-runtime jumpbox.exe
+          # 2. 拷贝 OpenCV 的运行时 DLL
+          # lucasg 的 action 会把 bin 路径加入 PATH，我们直接从那里考
+          copy "${{ env.OpenCV_DIR }}\x64\vc16\bin\*.dll" .
+
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: jumpbox-windows
-          path: build/Release/*.exe
+          path: build/Release/
