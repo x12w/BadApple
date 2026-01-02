@@ -12,28 +12,28 @@ jobs:
           version: '6.5.0'
           cache: true
 
-      - name: Setup OpenCV
-        # 换用这个维护更好的 Action
-        uses: lucasg/setup-opencv@v1
-        with:
-          opencv-version: '4.8.0'
+      - name: Install OpenCV via Choco
+        run: |
+          choco install opencv -y
+          # 告诉系统 OpenCV 的位置，Choco 默认安装在 C:\tools\opencv
+          echo "OpenCV_DIR=C:\tools\opencv\build" >> $GITHUB_ENV
+          echo "C:\tools\opencv\build\x64\vc16\bin" >> $GITHUB_PATH
 
       - name: Build
         run: |
           mkdir build
           cd build
-          # 注意：lucasg/setup-opencv 会设置 OpenCV_DIR 环境变量
-          cmake -DOpenCV_DIR="${{ env.OpenCV_DIR }}" ..
+          # 使用 Choco 安装的路径进行构建
+          cmake -DOpenCV_DIR="C:/tools/opencv/build" ..
           cmake --build . --config Release --target jumpbox
 
       - name: Package
         run: |
           cd build/Release
-          # 1. 自动部署 Qt 依赖
+          # 打包 Qt 运行库
           windeployqt --no-translations --compiler-runtime jumpbox.exe
-          # 2. 拷贝 OpenCV 的运行时 DLL
-          # lucasg 的 action 会把 bin 路径加入 PATH，我们直接从那里考
-          copy "${{ env.OpenCV_DIR }}\x64\vc16\bin\*.dll" .
+          # 拷贝 OpenCV 运行库 (注意路径需与 Choco 安装路径一致)
+          copy "C:\tools\opencv\build\x64\vc16\bin\*.dll" .
 
       - name: Upload
         uses: actions/upload-artifact@v4
