@@ -1,1 +1,6 @@
 build/
+.cache/
+.vscode/
+compile_commands.json
+play.cpp
+test_video.cpp

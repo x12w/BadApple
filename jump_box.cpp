@@ -9,7 +9,9 @@
 using namespace std;
 
 int main(int argc, char *argv[]){
+    #ifdef __linux__
     qputenv("QT_QPA_PLATFORM", "xcb");
+    #endif
     QApplication a(argc, argv);
 
 
