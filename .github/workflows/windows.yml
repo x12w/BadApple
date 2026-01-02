@@ -9,6 +9,11 @@ jobs:
         uses: jurplel/install-qt-action@v3
         with:
           version: '6.5.0' # 也可以改成 5.15.2
+      - name: Install OpenCV
+        run: |
+          vcpkg install opencv:x64-windows
+          # 告诉 CMake vcpkg 的安装路径
+          echo "CMAKE_PREFIX_PATH=C:/vcpkg/installed/x64-windows" >> $GITHUB_ENV
       - name: Build
         run: |
           mkdir build
