@@ -23,7 +23,7 @@ int main(int argc, char *argv[]){
 
 
     QWidget window;
-    window.setWindowFlags(Qt::FramelessWindowHint);
+    //window.setWindowFlags(Qt::FramelessWindowHint);
     window.setGeometry(0, 100, 300, 300);
     window.setWindowTitle("jumpbox");
     window.setStyleSheet("QWidget {"
