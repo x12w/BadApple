@@ -137,10 +137,12 @@ int main(int argc, char *argv[]){
     if (next_y >= ground) {
             next_y = ground;
             v_y = -v_y * 0.9;
+            v_x = v_x * 0.9;
         }
     if(next_y <= ceil){
         next_y = ceil;
         v_y = -v_y * 0.9;
+        v_x = v_x * 0.9;
     }
     if (next_x <= wall_1 || next_x >= wall_2){
         if (next_x <= wall_1)
