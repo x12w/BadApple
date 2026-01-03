@@ -10,13 +10,19 @@
 #include<QVBoxLayout>
 #include<QFileDialog>
 #include<QMouseEvent>
+#include <QElapsedTimer>
 
 using namespace std;
 
 static QPoint dragPosition; // 用于存储鼠标按下时的偏移量
-
+static int a_y = 1, v_y = 0, v_x = 10; 
 // 创建一个简单的事件过滤器类
 class DragFilter : public QObject {
+    QElapsedTimer timer;
+    QPoint lastPos;
+    double currentVx = 0;
+    double currentVy = 0;
+
 protected:
     bool eventFilter(QObject *obj, QEvent *event) override {
         QWidget *window = qobject_cast<QWidget*>(obj);
@@ -25,18 +31,41 @@ protected:
         if (event->type() == QEvent::MouseButtonPress) {
             QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
             if (mouseEvent->button() == Qt::LeftButton) {
-                // 记录：鼠标当前位置 - 窗口左上角位置 = 偏移量
                 dragPosition = mouseEvent->globalPos() - window->frameGeometry().topLeft();
-                return true; // 声明已处理该事件
+                
+                // 初始化计时和位置
+                lastPos = mouseEvent->globalPos();
+                timer.start(); 
+                
+                // 建议：按下时停止物理引擎定时器，防止冲突
+                // globalTimer->stop(); 
+                return true;
             }
         } 
         else if (event->type() == QEvent::MouseMove) {
             QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
             if (mouseEvent->buttons() & Qt::LeftButton) {
-                // 窗口移动到：鼠标当前全局位置 - 之前记录的偏移量
-                window->move(mouseEvent->globalPos() - dragPosition);
+                QPoint currentPos = mouseEvent->globalPos();
+                qint64 elapsed = timer.restart(); // 获取距离上次移动的时间(ms)
+
+                if (elapsed > 0) {
+                    // 计算瞬时速度 (像素/毫秒)
+                    // 为了匹配你物理引擎的 16ms 步进，这里可以换算成 像素/帧
+                    currentVx = (double)(currentPos.x() - lastPos.x()) / elapsed * 16.0;
+                    currentVy = (double)(currentPos.y() - lastPos.y()) / elapsed * 16.0;
+                }
+
+                window->move(currentPos - dragPosition);
+                lastPos = currentPos;
                 return true;
             }
+        }
+        else if (event->type() == QEvent::MouseButtonRelease) {
+            // 当鼠标松开时，将计算出的瞬时速度同步回你的物理引擎变量
+            v_x = (int)currentVx;
+            v_y = (int)currentVy;
+            //globalTimer->start();
+            qDebug() << "松开速度:" << currentVx << "," << currentVy;
         }
         return QObject::eventFilter(obj, event);
     }
@@ -93,8 +122,8 @@ int main(int argc, char *argv[]){
     int availHeight = availableGeometry.height();
 
 
-    static int a_y = 1, v_y = 0, v_x = 10; 
-    static int ground = availHeight - window.height();
+
+    static int ground = availHeight - window.height(), ceil = 0;
     static int wall_1 = 0, wall_2 = availWidth - window.width();
 
     QTimer timer;
@@ -107,15 +136,19 @@ int main(int argc, char *argv[]){
         // 2. 碰撞检测
     if (next_y >= ground) {
             next_y = ground;
-            v_y = -v_y;
+            v_y = -v_y * 0.9;
         }
+    if(next_y <= ceil){
+        next_y = ceil;
+        v_y = -v_y * 0.9;
+    }
     if (next_x <= wall_1 || next_x >= wall_2){
         if (next_x <= wall_1)
             next_x = wall_1;
         if (next_x >= wall_2)
             next_x = wall_2;
 
-            v_x = -v_x;
+            v_x = -v_x * 0.9;
         }
 
         // 3. 执行移动
