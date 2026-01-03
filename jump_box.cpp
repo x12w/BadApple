@@ -9,9 +9,38 @@
 #include<QLabel>
 #include<QVBoxLayout>
 #include<QFileDialog>
+#include<QMouseEvent>
 
 using namespace std;
 
+static QPoint dragPosition; // 用于存储鼠标按下时的偏移量
+
+// 创建一个简单的事件过滤器类
+class DragFilter : public QObject {
+protected:
+    bool eventFilter(QObject *obj, QEvent *event) override {
+        QWidget *window = qobject_cast<QWidget*>(obj);
+        if (!window) return false;
+
+        if (event->type() == QEvent::MouseButtonPress) {
+            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+            if (mouseEvent->button() == Qt::LeftButton) {
+                // 记录：鼠标当前位置 - 窗口左上角位置 = 偏移量
+                dragPosition = mouseEvent->globalPos() - window->frameGeometry().topLeft();
+                return true; // 声明已处理该事件
+            }
+        } 
+        else if (event->type() == QEvent::MouseMove) {
+            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+            if (mouseEvent->buttons() & Qt::LeftButton) {
+                // 窗口移动到：鼠标当前全局位置 - 之前记录的偏移量
+                window->move(mouseEvent->globalPos() - dragPosition);
+                return true;
+            }
+        }
+        return QObject::eventFilter(obj, event);
+    }
+};
 
 
 int main(int argc, char *argv[]){
@@ -23,12 +52,14 @@ int main(int argc, char *argv[]){
 
 
     QWidget window;
-    //window.setWindowFlags(Qt::FramelessWindowHint);
+    window.setWindowFlags(Qt::FramelessWindowHint);
     window.setGeometry(0, 100, 300, 300);
     window.setWindowTitle("jumpbox");
     window.setStyleSheet("QWidget {"
     "  border-image: url(':/images/picture.jpeg') 0 0 0 0 stretch stretch;"
     "}");
+    DragFilter *filter = new DragFilter();
+    window.installEventFilter(filter);
     window.show();
 
 
