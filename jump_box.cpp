@@ -4,15 +4,22 @@
 #include<QTimer>
 #include<QDebug>
 #include <qnamespace.h>
-#include<iostream>
+#include<QKeyEvent>
+#include<QPushButton>
+#include<QLabel>
+#include<QVBoxLayout>
+#include<QFileDialog>
 
 using namespace std;
+
+
 
 int main(int argc, char *argv[]){
     #ifdef __linux__
     qputenv("QT_QPA_PLATFORM", "xcb");
     #endif
     QApplication a(argc, argv);
+
 
 
     QWidget window;
@@ -24,6 +31,25 @@ int main(int argc, char *argv[]){
     "}");
     window.show();
 
+
+    QWidget *configWindow = new QWidget();
+    configWindow->setWindowTitle("控制面板");
+    configWindow->setFixedSize(250, 100);
+    
+    QVBoxLayout *layout = new QVBoxLayout(configWindow);
+    QPushButton *btn = new QPushButton("更换动画图片", configWindow);
+    layout->addWidget(btn);
+    configWindow->show();
+
+    QObject::connect(btn, &QPushButton::clicked, [&window]() {
+        QString fileName = QFileDialog::getOpenFileName(
+            nullptr, "选择新图片", "", "Images (*.png *.jpg *.jpeg *.bmp)");
+        
+        if (!fileName.isEmpty()) {
+            // 更新动画窗口的样式
+            window.setStyleSheet(QString("QWidget { border-image: url('%1') 0 0 0 0 stretch stretch; }").arg(fileName));
+        }
+    });
 
 
     // 在 QApplication 实例化之后调用
