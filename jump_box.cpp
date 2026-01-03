@@ -16,6 +16,7 @@ int main(int argc, char *argv[]){
 
 
     QWidget window;
+    window.setWindowFlags(Qt::FramelessWindowHint);
     window.setGeometry(0, 100, 300, 300);
     window.setWindowTitle("jumpbox");
     window.setStyleSheet("QWidget {"
@@ -36,7 +37,7 @@ int main(int argc, char *argv[]){
 
 
     static int a_y = 1, v_y = 0, v_x = 10; 
-    static int ground = availHeight - window.height() - 70;
+    static int ground = availHeight - window.height();
     static int wall_1 = 0, wall_2 = availWidth - window.width();
 
     QTimer timer;
