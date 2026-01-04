@@ -6,10 +6,11 @@
 #include<queue>
 #include<algorithm>
 #include<iostream>
+#include<matrix.hpp>
 using namespace std;
 
 
-extern vector<pair<pair<int, int>, pair<int, int>>> simplyMatrix(vector<vector<int>> & matrix) {
+extern vector<pair<pair<int, int>, pair<int, int>>> MATRIX::simplyMatrix(vector<vector<int>> & matrix) {
     
     
     //设置最小矩阵面积
@@ -44,7 +45,7 @@ extern vector<pair<pair<int, int>, pair<int, int>>> simplyMatrix(vector<vector<i
 }
 
 
-extern void horizontalCompression(vector<vector<int>> &matrix){
+extern void MATRIX::horizontalCompression(vector<vector<int>> &matrix){
     for(int row = 0; row < matrix.size(); ++row){
         for(int col = 0; col < matrix[0].size(); ++col){
             if (matrix[row][col] == 0 || col == 0){
@@ -59,7 +60,7 @@ extern void horizontalCompression(vector<vector<int>> &matrix){
 }
 
 
-extern void printMatrix(const vector<vector<int>> &matrix){
+extern void MATRIX::printMatrix(const vector<vector<int>> &matrix){
     for(const auto &row: matrix){
         for(const auto &element: row){
             cout << element << "\t";
@@ -71,7 +72,7 @@ extern void printMatrix(const vector<vector<int>> &matrix){
 
 // 返回: vector<pair<起始坐标(row,col), 尺寸(height,width)>>
 extern vector<pair<pair<int,int>, pair<int,int>>> 
-minRectangleCover(const vector<vector<int>>& matrix) {
+MATRIX::minRectangleCover(const vector<vector<int>>& matrix) {
     if (matrix.empty() || matrix[0].empty()) return {};
     
     int m = matrix.size(), n = matrix[0].size();

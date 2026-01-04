@@ -7,6 +7,7 @@
 #include<fstream>
 #include<video.hpp>
 #include<utility>
+#include<matrix.hpp>
 using namespace std;
 
 
@@ -117,17 +118,20 @@ namespace VIDEO{
                 //二值化
                 cv::threshold(gray, binary, 127, 255, cv::THRESH_OTSU);
 
+                //对二值化后的图片进行矩阵处理并写入
+                vector<vector<int>> mat(binary.rows, vector<int>(binary.cols));
+
                 for(int _row = 0; _row < binary.rows; ++_row){
                     for(int _col = 0; _col < binary.cols; ++_col){
-                        writer << binary.at<uchar>(_row, _col);
+                        mat[_row][_col] = (binary.at<uchar>(_row, _col) == 0) ? 0 : 1;
                     }
                 }
 
-                //写完一帧后写入2作为分隔符
-                writer << static_cast<uchar>(2);
+                binaryFrame tempFrame(MATRIX::minRectangleCover(mat));
+                tempFrame.writeToFile(writer);
 
                 frameCount++;
-                cout << "写入进度:%" << 100 * frameCount / totalFrames << "\r";
+                cout << "写入进度:%" << 100 * frameCount / totalFrames << endl;
 
             }
             cout << "\033[?25h";
@@ -250,6 +254,14 @@ namespace VIDEO{
     
     */
 
+    binaryFrame::binaryFrame(const vector<pair<pair<int, int>, pair<int, int>>> &_rectangleList):rectangleList(_rectangleList) {
+    }
+
+
+    void binaryFrame::getValue(const vector<pair<pair<int, int>, pair<int, int>>> &_rectangleList){
+        rectangleList = _rectangleList;
+    }
+
 
     void binaryFrame::readFromFile(const string fileName){
 
@@ -264,9 +276,9 @@ namespace VIDEO{
         int _numberOfRectangle;
         pair<pair<int, int>, pair<int, int>> rectangle;
 
-        while(reader >> _numberOfRectangle){
+        while(reader.read(reinterpret_cast<char *>(&_numberOfRectangle), sizeof(_numberOfRectangle))){
             for(int i = 0; i < _numberOfRectangle; ++i){
-                reader >> rectangle.first.first >> rectangle.first.second >> rectangle.second.first >> rectangle.second.second;
+                reader.read(reinterpret_cast<char *>(&rectangle), sizeof(rectangle));
                 rectangleList.push_back(rectangle);
             }
         }
@@ -278,17 +290,49 @@ namespace VIDEO{
         //创建输出流,以追加模式打开，文件创建和清理工作由video类管理
         ofstream writer(fileName, ofstream::app | ofstream::binary);
 
-        writer << numberOfRectangle;
-        for(auto rectangle:rectangleList){
+        writer.write(reinterpret_cast<char *>(&numberOfRectangle), sizeof(numberOfRectangle));
+        for(const auto &rectangle:rectangleList){
             writer << rectangle.first.first << rectangle.first.second << rectangle.second.first << rectangle.second.second;
+            writer.write(reinterpret_cast<const char *>(&rectangle), sizeof(rectangle));
         }
         writer.close();
     }
 
-    void binaryFrame::printData(){
+    void binaryFrame::printData() const{
         for(auto rectangle:rectangleList){
-            cout << "坐标：" << rectangle.first.first << "," << rectangle.first.second << "\t长x宽" << rectangle.second.first << "x" << rectangle.second.second << endl;
+            cout << "坐标：" << rectangle.first.first << "," 
+            << rectangle.first.second 
+            << "\t长x宽," 
+            << rectangle.second.first 
+            << "x" 
+            << rectangle.second.second << endl;
         }
     }
 
+    ifstream& binaryFrame::readFromFile(ifstream &reader){
+        
+        if(!reader){
+            cout << "ifstream error" << endl;
+            return reader;
+        }
+
+        int _numberOfRectangle;
+        pair<pair<int, int>, pair<int, int>> rectangle;
+
+        while(reader.read(reinterpret_cast<char *>(&_numberOfRectangle), sizeof(_numberOfRectangle))){
+            for(int i = 0; i < _numberOfRectangle; ++i){
+                reader.read(reinterpret_cast<char *>(&rectangle), sizeof(rectangle));
+                rectangleList.push_back(rectangle);
+            }
+        }
+        return reader;
+    }
+
+    void binaryFrame::writeToFile(ofstream &writer){
+        writer.write(reinterpret_cast<char *>(&numberOfRectangle), sizeof(numberOfRectangle));
+        for(const auto &rectangle:rectangleList){
+            writer << rectangle.first.first << rectangle.first.second << rectangle.second.first << rectangle.second.second;
+            writer.write(reinterpret_cast<const char *>(&rectangle), sizeof(rectangle));
+        }
+    }
 }

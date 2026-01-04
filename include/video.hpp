@@ -1,10 +1,11 @@
 #ifndef VIDEO_HPP   
 #define VIDEO_HPP
 
+#include <istream>
 #include<opencv2/opencv.hpp>
 #include<string>
 #include<vector>
-#include<utility>
+#include<fstream>
 #include<utility>
 
 namespace VIDEO{
@@ -17,10 +18,14 @@ namespace VIDEO{
 
         public:
         binaryFrame() = default;
+        binaryFrame(const std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>> &_rectangleList);
 
+        void getValue(const std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>> &_rectangleList);
         void writeToFile(const std::string fileName);
+        void writeToFile(std::ofstream &writer);
         void readFromFile(const std::string fileNmae);
-        void printData();
+        std::ifstream& readFromFile(std::ifstream &reader);
+        void printData() const;
     };
 
 
