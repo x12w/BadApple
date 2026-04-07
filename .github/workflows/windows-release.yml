@@ -1,0 +1,71 @@
+name: Windows Release Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - ".github/workflows/windows-release.yml"
+      - "CMakeLists.txt"
+      - "release_embedded.cpp"
+      - "generated/embedded_video_cache.hpp"
+      - "assets/**"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.7.3"
+          host: "windows"
+          target: "desktop"
+          arch: "win64_msvc2022_64"
+          cache: true
+
+      - name: Locate Qt
+        shell: pwsh
+        run: |
+          $qtPrefix = qmake -query QT_INSTALL_PREFIX
+          "QT_ROOT_DIR=$qtPrefix" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "QT_CMAKE_DIR=$qtPrefix/lib/cmake" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build-win `
+            -G Ninja `
+            -DBADAPPLE_RELEASE_ONLY=ON `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$env:QT_CMAKE_DIR"
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build-win --config Release --target BadAppleRelease
+
+      - name: Bundle Qt Runtime
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item build-win/BadAppleRelease.exe dist/
+          windeployqt --release --compiler-runtime dist/BadAppleRelease.exe
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BadAppleRelease-windows
+          path: dist/
