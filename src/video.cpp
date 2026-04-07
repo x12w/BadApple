@@ -1,3 +1,10 @@
+#include<QWidget>
+#include<QCoreApplication>
+#include<QApplication>
+#include<QPainter>
+#include<QScreen>
+#include<QTimer>
+#include<qnamespace.h>
 #include <opencv2/core/mat.hpp>
 #include <opencv2/core/types.hpp>
 #include<opencv2/opencv.hpp>
@@ -5,11 +12,114 @@
 #include<thread>
 #include<iostream>
 #include<fstream>
+#include<algorithm>
 #include<video.hpp>
 #include<utility>
 #include<matrix.hpp>
 using namespace std;
 
+namespace {
+    constexpr int kCellWidth = 8;
+    constexpr int kCellHeight = 10;
+
+    class FramePlayerWidget : public QWidget {
+    public:
+        FramePlayerWidget(
+            std::vector<std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>>> frames,
+            int frameDelayMs,
+            QWidget *parent = nullptr
+        ) : QWidget(parent),
+            frames_(std::move(frames)),
+            frameDelayMs_(std::max(frameDelayMs, 1)) {
+            setWindowFlags(Qt::FramelessWindowHint | Qt::Tool);
+            setAttribute(Qt::WA_TranslucentBackground);
+            setAttribute(Qt::WA_NoSystemBackground);
+            setAttribute(Qt::WA_OpaquePaintEvent, false);
+
+            contentSize_ = computeCanvasSize();
+
+            connect(&timer_, &QTimer::timeout, this, [this]() {
+                if (frames_.empty()) {
+                    timer_.stop();
+                    close();
+                    return;
+                }
+
+                currentFrameIndex_ = (currentFrameIndex_ + 1) % frames_.size();
+                update();
+            });
+        }
+
+        void start() {
+            if (frames_.empty()) {
+                close();
+                return;
+            }
+
+            if (auto *screen = QGuiApplication::primaryScreen()) {
+                setGeometry(screen->geometry());
+            } else {
+                resize(contentSize_);
+            }
+
+            showFullScreen();
+            timer_.start(frameDelayMs_);
+            update();
+        }
+
+    protected:
+        void paintEvent(QPaintEvent *) override {
+            QPainter painter(this);
+            painter.setRenderHint(QPainter::Antialiasing, false);
+            painter.setCompositionMode(QPainter::CompositionMode_Source);
+            painter.fillRect(rect(), Qt::transparent);
+            painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(Qt::black);
+
+            const double scaleX = static_cast<double>(width()) / std::max(contentSize_.width(), 1);
+            const double scaleY = static_cast<double>(height()) / std::max(contentSize_.height(), 1);
+
+            for (const auto &rectangle : frames_[currentFrameIndex_]) {
+                const int row = rectangle.first.first;
+                const int col = rectangle.first.second;
+                const int height = rectangle.second.first;
+                const int width = rectangle.second.second;
+
+                painter.drawRect(
+                    static_cast<int>(col * kCellWidth * scaleX),
+                    static_cast<int>(row * kCellHeight * scaleY),
+                    std::max(1, static_cast<int>(width * kCellWidth * scaleX)),
+                    std::max(1, static_cast<int>(height * kCellHeight * scaleY))
+                );
+            }
+        }
+
+    private:
+        QSize computeCanvasSize() const {
+            int maxRow = 0;
+            int maxCol = 0;
+
+            for (const auto &frame : frames_) {
+                for (const auto &rectangle : frame) {
+                    maxRow = std::max(maxRow, rectangle.first.first + rectangle.second.first);
+                    maxCol = std::max(maxCol, rectangle.first.second + rectangle.second.second);
+                }
+            }
+
+            return QSize(
+                std::max(maxCol * kCellWidth, 1),
+                std::max(maxRow * kCellHeight, 1)
+            );
+        }
+
+        std::vector<std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>>> frames_;
+        QTimer timer_;
+        std::size_t currentFrameIndex_ = 0;
+        int frameDelayMs_;
+        QSize contentSize_;
+    };
+}
 
 
 namespace VIDEO{
@@ -32,6 +142,10 @@ namespace VIDEO{
             return;
         }
         cap.open(videoName);
+        const double fps = cap.get(cv::CAP_PROP_FPS);
+        if (fps > 0) {
+            playbackFps = fps;
+        }
     }
 
     void video::close(){
@@ -47,6 +161,12 @@ namespace VIDEO{
     void video::setSize(int width, int height){
         size.first = width;
         size.second = height;
+    }
+
+    void video::setPlaybackFps(double fps) {
+        if (fps > 0) {
+            playbackFps = fps;
+        }
     }
 
 
@@ -97,8 +217,10 @@ namespace VIDEO{
                 writer << buffer;
 
                 frameCount++;
-                cout << "写入进度:%" << 100 * frameCount / totalFrames << "\r";
+                cout << "写入进度:%" << 100 * frameCount / totalFrames << '\r';
             }
+
+
             cout << "\033[?25h";
             bufferMode = false;
             break;
@@ -131,7 +253,7 @@ namespace VIDEO{
                 tempFrame.writeToFile(writer);
 
                 frameCount++;
-                cout << "写入进度:%" << 100 * frameCount / totalFrames << endl;
+                cout << "写入进度:%" << 100 * frameCount / totalFrames << '\r';
 
             }
             cout << "\033[?25h";
@@ -148,7 +270,7 @@ namespace VIDEO{
 
 
     void video::play(playMode mode){
-        if(!this -> isOpen()){
+        if(!this -> isOpen() && !buffered){
             cout << "no video is opened" << endl;
             return;
         }
@@ -174,19 +296,28 @@ namespace VIDEO{
 
 
         //获取帧率并计算帧间时间
-        double fps = cap.get(cv::CAP_PROP_FPS);
+        double fps = playbackFps;
+        if (cap.isOpened()) {
+            const double captureFps = cap.get(cv::CAP_PROP_FPS);
+            if (captureFps > 0) {
+                playbackFps = captureFps;
+                fps = captureFps;
+            }
+        }
         if (fps <= 0) fps = 24;
         int delay_ms = 1000 / fps;
 
-        //创建输入文件流
-        ifstream reader(bufferedName);
-        if(!reader.is_open()){
-            cout << "can't open the buffer file,please check" << endl;
-            return;
-        }
+        ifstream reader;
+        
 
         switch(mode){
             case TERMINAL:{
+            //创建输入文件流
+                reader.open(bufferedName);
+                if(!reader.is_open()){
+                cout << "can't open the buffer file,please check" << endl;
+                return;
+                }
                 //清屏并复位
                 cout << "\033[?25l" << "\033[2J";
 
@@ -212,9 +343,9 @@ namespace VIDEO{
                     cout << "\033[H" << frame << flush;
 
                     // 计算剩余时间并进行类型转换
-                    auto sleep_time = chrono::milliseconds(delay_ms - time);
-
-                    this_thread::sleep_for(sleep_time);
+                    if (time < delay_ms) {
+                        this_thread::sleep_for(chrono::milliseconds(delay_ms - time));
+                    }
 
                 }
 
@@ -224,6 +355,37 @@ namespace VIDEO{
                 break;
             }
             case WINDOWS:{
+                reader.open(bufferedName, std::ios::binary);
+                if(!reader.is_open()){
+                cout << "can't open the buffer file,please check" << endl;
+                return;
+                }
+
+                //重新定位输入流并恢复流状态
+                reader.clear();
+                reader.seekg(0);
+
+                binaryFrame tempFrame;
+                reader.seekg(0);
+                reader.clear();
+
+                vector<vector<pair<pair<int, int>, pair<int, int>>>> frames;
+                while(tempFrame.readFromFile(reader)) {
+                    if (!reader) {
+                        break;
+                    }
+                    frames.push_back(tempFrame.rectangles());
+                }
+
+                if (frames.empty()) {
+                    cout << "no frame data available" << endl;
+                    return;
+                }
+
+                auto *player = new FramePlayerWidget(std::move(frames), delay_ms);
+                player->setAttribute(Qt::WA_DeleteOnClose);
+                player->start();
+                break;
 
             }
         }
@@ -232,19 +394,40 @@ namespace VIDEO{
 
     }
 
-    video::video():buffered(false),cap(),size({0, 0}){
+    video::video():buffered(false),playbackFps(24.0),cap(),size({0, 0}){
     }
 
-    video::video(string videoName):buffered(false),cap(videoName),size({0, 0}){
+    video::video(string videoName):buffered(false),playbackFps(24.0),cap(videoName),size({0, 0}){
+        const double fps = cap.get(cv::CAP_PROP_FPS);
+        if (fps > 0) {
+            playbackFps = fps;
+        }
     }
 
-    video::video(string videoName, int width, int height):buffered(false),cap(videoName),size({width, height}){
+    video::video(string videoName, int width, int height):buffered(false),playbackFps(24.0),cap(videoName),size({width, height}){
+        const double fps = cap.get(cv::CAP_PROP_FPS);
+        if (fps > 0) {
+            playbackFps = fps;
+        }
     }
 
     video::~video(){
         if(cap.isOpened()){
             cap.release();
         }
+    }
+
+    void video::setBuffer(const string &bufferName, video::writeMode mode) {
+
+        bufferedName = bufferName;
+        if(mode == video::STRING){
+            bufferMode = false;
+        }
+        else{
+            bufferMode = true;
+        }
+
+        buffered = true;
     }
 
 
@@ -255,11 +438,13 @@ namespace VIDEO{
     */
 
     binaryFrame::binaryFrame(const vector<pair<pair<int, int>, pair<int, int>>> &_rectangleList):rectangleList(_rectangleList) {
+        numberOfRectangle = static_cast<int>(rectangleList.size());
     }
 
 
     void binaryFrame::getValue(const vector<pair<pair<int, int>, pair<int, int>>> &_rectangleList){
         rectangleList = _rectangleList;
+        numberOfRectangle = static_cast<int>(rectangleList.size());
     }
 
 
@@ -289,10 +474,10 @@ namespace VIDEO{
 
         //创建输出流,以追加模式打开，文件创建和清理工作由video类管理
         ofstream writer(fileName, ofstream::app | ofstream::binary);
+        numberOfRectangle = static_cast<int>(rectangleList.size());
 
         writer.write(reinterpret_cast<char *>(&numberOfRectangle), sizeof(numberOfRectangle));
         for(const auto &rectangle:rectangleList){
-            writer << rectangle.first.first << rectangle.first.second << rectangle.second.first << rectangle.second.second;
             writer.write(reinterpret_cast<const char *>(&rectangle), sizeof(rectangle));
         }
         writer.close();
@@ -312,27 +497,38 @@ namespace VIDEO{
     ifstream& binaryFrame::readFromFile(ifstream &reader){
         
         if(!reader){
-            cout << "ifstream error" << endl;
             return reader;
         }
+
+        rectangleList.clear();
 
         int _numberOfRectangle;
         pair<pair<int, int>, pair<int, int>> rectangle;
 
-        while(reader.read(reinterpret_cast<char *>(&_numberOfRectangle), sizeof(_numberOfRectangle))){
-            for(int i = 0; i < _numberOfRectangle; ++i){
-                reader.read(reinterpret_cast<char *>(&rectangle), sizeof(rectangle));
-                rectangleList.push_back(rectangle);
+        if(!reader.read(reinterpret_cast<char *>(&_numberOfRectangle), sizeof(_numberOfRectangle))){
+            return reader;
+        }
+
+        numberOfRectangle = _numberOfRectangle;
+        for(int i = 0; i < _numberOfRectangle; ++i){
+            if(!reader.read(reinterpret_cast<char *>(&rectangle), sizeof(rectangle))){
+                break;
             }
+            rectangleList.push_back(rectangle);
         }
         return reader;
     }
 
     void binaryFrame::writeToFile(ofstream &writer){
+        numberOfRectangle = static_cast<int>(rectangleList.size());
         writer.write(reinterpret_cast<char *>(&numberOfRectangle), sizeof(numberOfRectangle));
+
         for(const auto &rectangle:rectangleList){
-            writer << rectangle.first.first << rectangle.first.second << rectangle.second.first << rectangle.second.second;
             writer.write(reinterpret_cast<const char *>(&rectangle), sizeof(rectangle));
         }
+    }
+
+    const vector<pair<pair<int, int>, pair<int, int>>> &binaryFrame::rectangles() const {
+        return rectangleList;
     }
 }
