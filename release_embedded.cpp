@@ -1,5 +1,6 @@
 #include <QApplication>
 #include <QByteArray>
+#include <QKeyEvent>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QScreen>
@@ -79,6 +80,7 @@ namespace {
             setAttribute(Qt::WA_TranslucentBackground);
             setAttribute(Qt::WA_NoSystemBackground);
             setAttribute(Qt::WA_OpaquePaintEvent, false);
+            setFocusPolicy(Qt::StrongFocus);
 
             contentSize_ = computeCanvasSize();
 
@@ -109,11 +111,21 @@ namespace {
             showFullScreen();
             raise();
             activateWindow();
+            setFocus();
             timer_.start(frameDelayMs_);
             update();
         }
 
     protected:
+        void keyPressEvent(QKeyEvent *event) override {
+            if (event->key() == Qt::Key_Escape) {
+                close();
+                return;
+            }
+
+            QWidget::keyPressEvent(event);
+        }
+
         void paintEvent(QPaintEvent *) override {
             QPainter painter(this);
             painter.setRenderHint(QPainter::Antialiasing, false);
