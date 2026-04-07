@@ -1,8 +1,10 @@
 #include <QApplication>
 #include <QByteArray>
+#include <QPaintEvent>
 #include <QPainter>
 #include <QScreen>
 #include <QTimer>
+#include <QWidget>
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
