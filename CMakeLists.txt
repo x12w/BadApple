@@ -21,7 +21,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 #include_directories(${OpenCV_INCLUDE_DIRS})
 
 
-add_executable(BadAppleRelease release_embedded.cpp)
+add_executable(BadAppleRelease WIN32 release_embedded.cpp)
 target_include_directories(BadAppleRelease PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(BadAppleRelease PRIVATE Qt6::Widgets)
 

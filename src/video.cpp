@@ -26,17 +26,19 @@ namespace {
     public:
         FramePlayerWidget(
             std::vector<std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>>> frames,
+            QSize logicalFrameSize,
             int frameDelayMs,
             QWidget *parent = nullptr
         ) : QWidget(parent),
             frames_(std::move(frames)),
+            logicalFrameSize_(logicalFrameSize),
             frameDelayMs_(std::max(frameDelayMs, 1)) {
-            setWindowFlags(Qt::FramelessWindowHint | Qt::Tool);
+            setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
             setAttribute(Qt::WA_TranslucentBackground);
             setAttribute(Qt::WA_NoSystemBackground);
             setAttribute(Qt::WA_OpaquePaintEvent, false);
 
-            contentSize_ = computeCanvasSize();
+            contentSize_ = computeCanvasSize(logicalFrameSize_);
 
             connect(&timer_, &QTimer::timeout, this, [this]() {
                 if (frames_.empty()) {
@@ -63,6 +65,8 @@ namespace {
             }
 
             showFullScreen();
+            raise();
+            activateWindow();
             timer_.start(frameDelayMs_);
             update();
         }
@@ -96,24 +100,15 @@ namespace {
         }
 
     private:
-        QSize computeCanvasSize() const {
-            int maxRow = 0;
-            int maxCol = 0;
-
-            for (const auto &frame : frames_) {
-                for (const auto &rectangle : frame) {
-                    maxRow = std::max(maxRow, rectangle.first.first + rectangle.second.first);
-                    maxCol = std::max(maxCol, rectangle.first.second + rectangle.second.second);
-                }
-            }
-
+        static QSize computeCanvasSize(const QSize &logicalFrameSize) {
             return QSize(
-                std::max(maxCol * kCellWidth, 1),
-                std::max(maxRow * kCellHeight, 1)
+                std::max(logicalFrameSize.width() * kCellWidth, 1),
+                std::max(logicalFrameSize.height() * kCellHeight, 1)
             );
         }
 
         std::vector<std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>>> frames_;
+        QSize logicalFrameSize_;
         QTimer timer_;
         std::size_t currentFrameIndex_ = 0;
         int frameDelayMs_;
@@ -382,7 +377,12 @@ namespace VIDEO{
                     return;
                 }
 
-                auto *player = new FramePlayerWidget(std::move(frames), delay_ms);
+                const QSize logicalFrameSize(
+                    std::max(size.first, 1),
+                    std::max(size.second, 1)
+                );
+
+                auto *player = new FramePlayerWidget(std::move(frames), logicalFrameSize, delay_ms);
                 player->setAttribute(Qt::WA_DeleteOnClose);
                 player->start();
                 break;

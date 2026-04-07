@@ -60,6 +60,8 @@ int main(int argc, char *argv[]) {
     writer << "#include <cstddef>\n\n";
     writer << "namespace BAD_APPLE_EMBEDDED {\n";
     writer << "inline constexpr double kVideoFps = " << std::fixed << std::setprecision(6) << fps << ";\n";
+    writer << "inline constexpr int kVideoWidth = " << width << ";\n";
+    writer << "inline constexpr int kVideoHeight = " << height << ";\n";
     writer << "inline constexpr unsigned char kVideoCache[] = {\n";
 
     for (std::size_t i = 0; i < bytes.size(); ++i) {

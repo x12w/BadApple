@@ -75,7 +75,7 @@ namespace {
             : QWidget(parent),
               frames_(std::move(frames)),
               frameDelayMs_(std::max(1, static_cast<int>(1000.0 / std::max(BAD_APPLE_EMBEDDED::kVideoFps, 1.0)))) {
-            setWindowFlags(Qt::FramelessWindowHint | Qt::Tool);
+            setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
             setAttribute(Qt::WA_TranslucentBackground);
             setAttribute(Qt::WA_NoSystemBackground);
             setAttribute(Qt::WA_OpaquePaintEvent, false);
@@ -107,6 +107,8 @@ namespace {
             }
 
             showFullScreen();
+            raise();
+            activateWindow();
             timer_.start(frameDelayMs_);
             update();
         }
@@ -141,19 +143,9 @@ namespace {
 
     private:
         QSize computeCanvasSize() const {
-            int maxRow = 0;
-            int maxCol = 0;
-
-            for (const auto &frame : frames_) {
-                for (const auto &rectangle : frame) {
-                    maxRow = std::max(maxRow, rectangle.first.first + rectangle.second.first);
-                    maxCol = std::max(maxCol, rectangle.first.second + rectangle.second.second);
-                }
-            }
-
             return QSize(
-                std::max(maxCol * kCellWidth, 1),
-                std::max(maxRow * kCellHeight, 1)
+                std::max(BAD_APPLE_EMBEDDED::kVideoWidth * kCellWidth, 1),
+                std::max(BAD_APPLE_EMBEDDED::kVideoHeight * kCellHeight, 1)
             );
         }
 
